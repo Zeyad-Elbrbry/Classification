@@ -4,10 +4,10 @@ import csv
 from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from imblearn.over_sampling import SMOTE
 
 
-
-# Extracting the data
+#Extracting data from csv file into X input set and Y output set for the 3 classes
 with open('E:\Semester10\Machine Learning\Classification Project\clean_2014.csv', 'r') as csv_file:
     csv_reader = csv.reader(csv_file)
     next(csv_reader)
@@ -30,7 +30,7 @@ with open('E:\Semester10\Machine Learning\Classification Project\clean_2014.csv'
          
 n_classes = 3
 
-# Dividing the data into classes
+#For Stratified Sampling, First Step is to stratify the data by class
 def StratifyByClass(X,Y,n_classes):
     #Classes Count
     zerosCount = 119903
@@ -47,9 +47,12 @@ def StratifyByClass(X,Y,n_classes):
     Xtwos = np.zeros((twosCount,X.shape[1]))
     Ytwos = np.zeros((twosCount,n_classes))
     
+    #Using 1 hot encoding to encode the outputs 0,1 and 2 as we use Segmoid function
+
     zeros = 0
     ones = 0
     twos = 0
+    
     for i in range(X.shape[0]):
         if (Y[i] == 0):
             Xzeros[zeros] = X[i]
@@ -68,12 +71,12 @@ def StratifyByClass(X,Y,n_classes):
     
     return(Xzeros,Yzeros,Xones,Yones,Xtwos,Ytwos)
 
+#Second Step to randomly chose instances from each class proportionally and construct training and testing sets
 
 def StratifiedSampling(X,Y):
     Xzeros,Yzeros,Xones,Yones,Xtwos,Ytwos = StratifyByClass(X,Y,3)
-    
     # Get the total number of rows in the original array
-    total_rows = Xzeros.shape[0]+Xones.shape[0]+Xtwos.shape[0]
+    total_rows = X.shape[0]
     
     # Construction Train, CV, and Test sets
     zerosWeight =  Xzeros.shape[0]/total_rows
@@ -228,14 +231,14 @@ def Backpropagation(m, Xtrain, Ytrain, learning_rate, regularization_param):
         delta2 += np.dot(error3,output1.T)
         delta1 += np.dot(error2,input_layer.T)
         
-        # Step 7: Update the weights
+        # Step 6: Update the weights
         weights1 -= learning_rate * ((delta1 / m) + (regularization_param * weights1))
         weights2 -= learning_rate * ((delta2 / m) + (regularization_param * weights2))
         weights3 -= learning_rate * ((delta3 / m) + (regularization_param * weights3))
    
-        return(weights1, weights2, weights3)
+    return(weights1, weights2, weights3)
     
-
+#one way for model evaluation
 def accuracy2(y_pred, y_test):
     acc = 0
     TrueZeros = 0
@@ -285,6 +288,7 @@ def accuracy2(y_pred, y_test):
       
     return (acc/(len(y_test)), PredZeros, PredOnes, PredTwos, TrueZeros, TrueOnes, TrueTwos, FalseZeros, FalseOnes, FalseTwos,TestZeros, TestOnes, TestTwos, Undefined)
       
+#Cross validation error
 def Jcv(y_pred, y_cv):
     sqEr = 0
     for i in range(len(y_cv)):
@@ -293,32 +297,7 @@ def Jcv(y_pred, y_cv):
     error = (1/(2*len(y_cv)))*sqEr
     return (error)
 
-def Jcvimbalanced(y_pred, y_cv):
-    zeros = 0
-    zerosSqError = 0
-    ones = 0
-    onesSqError = 0
-    twos = 0
-    twosSqError = 0
-    
-    for i in range(len(y_cv)):
-        if (y_cv[i] == 0):
-            zerosSqError += (y_pred[i] - y_cv[i])**2
-            zeros += 1 
-        if (y_cv[i] == 1):
-            onesSqError += (y_pred[i] - y_cv[i])**2
-            ones += 1
-        if (y_cv[i] == 2):
-            twosSqError += (y_pred[i] - y_cv[i])**2
-            twos += 1
-            
-    zerosError = (1/(2*zeros))*zerosSqError
-    onesError = (1/(2*ones))*onesSqError
-    twosError = (1/(2*twos))*twosSqError
-
-    return (zerosError+6*onesError+77*twosError)
-
-#Decoding Output Classes
+#Decoding when necessary for model evaluation simplicity 
 def ClassDecode(y) :
     Y = np.zeros(len(y))
     for i in range(len(y)):
@@ -354,6 +333,9 @@ def predict(Xcv,weights1, weights2, weights3):
                     y_pred[i][j] = 1
     return(y_pred)
     
+
+#Model selection by sweeping on the hyperparameters alpha, lambda and the polynomial degree
+#Using Cross Validation Set to avoid over fitting and leaving a testing set afterwards
 def ModelSelection(learning_rate, regularization_param, Xtrain,Xcv,Ytrain,Ycv):
     cvErr = np.zeros((len(learning_rate),len(regularization_param)))
     Accuracy = np.zeros((len(learning_rate),len(regularization_param)))
@@ -372,33 +354,51 @@ def ModelSelection(learning_rate, regularization_param, Xtrain,Xcv,Ytrain,Ycv):
     
     return(learning_rate[ic], regularization_param[jc], cvErr, learning_rate[icm], regularization_param[jcm], Accuracy)
         
+#Confusion matrix for model evaluation
+def plot_confusion_matrix(y_test,y_pred):
+    cm = confusion_matrix(y_test,y_pred)
+    sns.heatmap(cm,cmap='Blues',annot=True)
+    plt.xlabel('Predicted')
+    plt.ylabel('original')
+    plt.show()
 
+def calculate_metrics(y_test,y_pred):
+    # Calculate the metrics for this fold
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred, average='weighted')
+    recall = recall_score(y_test, y_pred, average='weighted')
+    f1 = f1_score(y_test,y_pred,average='weighted')
+    return accuracy,precision,recall,f1
+
+#Starting the model selection, testing and evaluation process
 
 # Getting the necessary sets
 Xtrain,Xcv,Xtest,Ytrain,Ycv,Ytest = StratifiedSampling(X,Y)
-
-# Set the random seed for reproducibility
-np.random.seed(42)
 
 # Define the learning rate and regularization parameter
 learning_rate = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3]
 regularization_param = [0,0.01,0.02,0.04,0.08,0.16,0.32,0.64,1.28,2.56,5.12,10.24]
 
+#Model Selection
 learning_rateCV, regularization_paramCV, cvErr, learning_rateCVM, regularization_paramCVM, Accuracy = ModelSelection(learning_rate, regularization_param, Xtrain,Xcv,Ytrain,Ycv)
-weights1, weights2, weights3 = Backpropagation(Xtrain.shape[0], Xtrain, Ytrain, learning_rateCV, regularization_paramCV)
-y_pred = predict(Xtest,weights1, weights2, weights3)
+#after training using training set, model selection using cross validation set
+#the model hyperparameters are chosen
+#training
+weights1, weights2, weights3 = Backpropagation(Xtrain.shape[0], Xtrain, Ytrain, 0.01, 5.12)
+y_pred = predict(Xtest,weights1, weights2, weights3) #testing
 
 Y_pred = ClassDecode(y_pred)
 Y_test = ClassDecode(Ytest)
 
-#accuracy,precision,recall,f1 = calculate_metrics(Y_test,Y_pred)
-
+# Evaluation
+accuracy,precision,recall,f1 = calculate_metrics(Y_test,Y_pred)
+plot_confusion_matrix(Y_test, Y_pred)
 acc,PZ, PO, PT, TZ, TO, TT, FZ,FO,FT,TsZ,TsO,TsT,Undef = accuracy2(y_pred, Ytest)
 
-"""print(f'  Accuracy: {accuracy:.4f}')
+print(f'  Accuracy: {accuracy:.4f}')
 print(f'  Precision: {precision:.4f}')
 print(f'  Recall: {recall:.4f}')
-print(f'  F1 Score: {f1:.4f}')"""
+print(f'  F1 Score: {f1:.4f}')
 
 print("accuracy : ", acc)
 print("Predicted Zero : ",PZ)

@@ -5,6 +5,7 @@ def sigmoid(x):
 
 class LogisticRegression():
 
+    #constructing the classifier learning rate is lr, regularization parameter is alpha
     def __init__(self, d=1, lr=0.01, alpha=2.56, n_iters=1000):
         self.lr = lr
         self.n_iters = n_iters
@@ -12,6 +13,7 @@ class LogisticRegression():
         self.weights = None
         self.alpha = alpha
 
+    #the training process using the sigmoid function and gradient descent
     def fit(self, X, y):
         n_samples, n_features = X.shape
         n_samples, n_classes = y.shape
@@ -24,6 +26,7 @@ class LogisticRegression():
             dw = np.dot((X.T)**(d+1), (predictions - y))
             self.weights = self.weights - self.lr*(1/n_samples) * (dw+(self.alpha*self.weights))
 
+    #the testing process
     def predict(self, X):
         linear_pred = np.zeros((np.dot(X, self.weights[0])).shape)
         for d in range(self.d):
